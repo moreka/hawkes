@@ -12,10 +12,6 @@ default_kernel = lambda x: np.exp(-x)
 
 
 def hawkes_intensity(mu, alpha, events, t, g=default_kernel):
-    """
-    :type events: Events
-    """
-
     intensity = mu.copy()
     event_count = len(events.times)
 
