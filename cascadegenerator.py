@@ -8,6 +8,7 @@ import time
 from modelgenerator import Events
 
 
+
 default_kernel = lambda x: np.exp(-x)
 
 
