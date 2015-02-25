@@ -1,15 +1,21 @@
 from __future__ import print_function
 
+cimport numpy as np
 import numpy as np
+from numpy cimport ndarray
 import scipy
 import scipy.sparse
 import time
-import math
+import cmath
 
 from modelgenerator import Events
 
 
-def hawkes_intensity(mu, alpha, events, t):
+cdef hawkes_intensity(mu, alpha, events, double t):
+    cdef ndarray[double, ndim=2] intensity
+    cdef size_t i
+    cdef double ti
+
     intensity = mu.copy()
 
     for i in range(events.count):
@@ -19,7 +25,7 @@ def hawkes_intensity(mu, alpha, events, t):
 
         pi = events.products[i]
         ui = events.users[i]
-        intensity[:, pi] = intensity[:, pi] + alpha[ui, :] * math.exp(ti - t)
+        intensity[:, pi] = intensity[:, pi] + alpha[ui, :] * cmath.exp(ti - t)
 
     return intensity
 
@@ -69,25 +75,3 @@ def generate_hawkes(mu, alpha, n, t0=0, intensity=hawkes_intensity):
                 print('\tnow at iteration ', k)
 
     return events
-
-
-def main():
-    n = 50
-    p = 5
-    max_alpha = 0.1
-    max_mu = 0.01
-
-    print('Generating sparce alpha and random mu ...')
-    alpha = max_alpha * scipy.sparse.rand(n, n, 0.3, format='csc').toarray()
-    mu = np.random.uniform(0, max_mu, (n, p))
-
-    print('Generating hawkes process ...')
-    t1 = time.time()
-    events = generate_hawkes(mu, alpha, 1000)
-
-    print('Time consumed: ', time.time() - t1)
-
-    print(events.times)
-
-if __name__ == '__main__':
-    main()
