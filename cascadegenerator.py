@@ -4,27 +4,22 @@ import numpy as np
 import scipy
 import scipy.sparse
 import time
+import math
 
 from modelgenerator import Events
 
 
-
-default_kernel = lambda x: np.exp(-x)
-
-
-def hawkes_intensity(mu, alpha, events, t, g=default_kernel):
+def hawkes_intensity(mu, alpha, events, t):
     intensity = mu.copy()
-    event_count = len(events.times)
 
-    for i in range(event_count):
-        pi = events.products[i]
-        ui = events.users[i]
+    for i in range(events.count):
         ti = events.times[i]
-
-        if ti > t:
+        if ti >= t:
             break
 
-        intensity[:, pi] = intensity[:, pi] + alpha[ui, :] * g(t-ti)
+        pi = events.products[i]
+        ui = events.users[i]
+        intensity[:, pi] = intensity[:, pi] + alpha[ui, :] * math.exp(ti - t)
 
     return intensity
 
@@ -52,23 +47,23 @@ def generate_hawkes(mu, alpha, n, t0=0, intensity=hawkes_intensity):
         intensity_at_t = intensity(mu, alpha, events, t)
 
         m_t = intensity_at_t.sum()
-        s = np.random.exponential(m_t)
+        s = np.random.exponential(1. / m_t)
         u = np.random.uniform()
 
-        intensity_at_t_s = intensity(mu, alpha, events, t + s).sum()
+        intensity_at_t_s = intensity(mu, alpha, events, t + s)
 
-        if u * m_t > intensity_at_t_s:
-            t = t + s
-        else:
+        t = t + s
+
+        if u * m_t < intensity_at_t_s.sum():
+
             user = get_random_user(intensity_at_t, m_t)
             product = get_random_product(intensity_at_t)
 
             events.users[k] = user
             events.products[k] = product
-            events.times[k] = t + s
+            events.times[k] = t
 
             k += 1
-            t = t + s
 
             if k % 10 == 0:
                 print('\tnow at iteration ', k)
@@ -88,7 +83,7 @@ def main():
 
     print('Generating hawkes process ...')
     t1 = time.time()
-    events = generate_hawkes(mu, alpha, 300)
+    events = generate_hawkes(mu, alpha, 1000)
 
     print('Time consumed: ', time.time() - t1)
 
