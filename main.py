@@ -5,7 +5,7 @@ from cascadegenerator import *
 import numpy as np
 import scipy
 import scipy.sparse
-
+import time
 
 n = 50
 p = 5
@@ -18,8 +18,8 @@ mu = np.random.uniform(0, max_mu, (n, p))
 
 print('Generating hawkes process ...')
 t1 = time.time()
-events = generate_hawkes(mu, alpha, 1000)
+event_t, event_p, event_u = generate_hawkes(mu, alpha, 1000)
 
 print('Time consumed: ', time.time() - t1)
 
-print(events.times)
+print(event_t)

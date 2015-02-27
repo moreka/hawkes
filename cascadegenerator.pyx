@@ -1,62 +1,84 @@
-from __future__ import print_function
+from __future__ import print_function, division
 
-cimport numpy as np
+cimport cython
 import numpy as np
-from numpy cimport ndarray
-import scipy
-import scipy.sparse
-import time
-import cmath
-
-from modelgenerator import Events
+cimport numpy as np
+from libc.math cimport exp
 
 
-cdef hawkes_intensity(mu, alpha, events, double t):
-    cdef ndarray[double, ndim=2] intensity
-    cdef size_t i
+DTYPE = np.double
+ctypedef np.double_t DTYPE_t
+
+ITYPE = np.int
+ctypedef np.int_t ITYPE_t
+
+LTYPE = np.long
+ctypedef np.long_t LTYPE_t
+
+
+@cython.boundscheck(False)
+cdef intensity(np.ndarray[DTYPE_t, ndim=2] mu,
+               np.ndarray[DTYPE_t, ndim=2] alpha,
+               np.ndarray[DTYPE_t] event_times,
+               np.ndarray[ITYPE_t] event_users,
+               np.ndarray[ITYPE_t] event_prods,
+               double t):
+
+    cdef np.ndarray[DTYPE_t, ndim=2] intens
+    cdef unsigned int i, pi, ui
     cdef double ti
 
-    intensity = mu.copy()
+    intens = 1 * mu
 
-    for i in range(events.count):
-        ti = events.times[i]
+    for i in range(event_times.shape[0]):
+        ti = event_times[i]
         if ti >= t:
             break
 
-        pi = events.products[i]
-        ui = events.users[i]
-        intensity[:, pi] = intensity[:, pi] + alpha[ui, :] * cmath.exp(ti - t)
+        pi = event_prods[i]
+        ui = event_users[i]
+        intens[:, pi] = intens[:, pi] + alpha[ui, :] * exp(ti - t)
 
-    return intensity
+    return intens
 
+cdef int get_random_user(np.ndarray[DTYPE_t, ndim=2] intensity, double intensity_sum):
+    cdef np.ndarray[DTYPE_t] row_sum
+    cdef np.ndarray[LTYPE_t] random_picked_user
 
-def get_random_user(intensity, intensity_sum):
     row_sum = intensity.sum(axis=1)
     random_picked_user = np.random.multinomial(1, row_sum / intensity_sum)
+
     return np.flatnonzero(random_picked_user)[0]
 
+cdef int get_random_product(np.ndarray[DTYPE_t, ndim=2] intensity):
+    cdef np.ndarray[DTYPE_t] col_sum
+    cdef np.ndarray[LTYPE_t] random_picked_product
 
-def get_random_product(intensity):
     col_sum = np.exp(intensity).sum(axis=0)
     random_picked_product = np.random.multinomial(1, col_sum / col_sum.sum())
     return np.flatnonzero(random_picked_product)[0]
 
+def generate_hawkes(np.ndarray[DTYPE_t, ndim=2] mu, 
+                    np.ndarray[DTYPE_t, ndim=2] alpha, 
+                    int n, 
+                    double t0=0):
 
-def generate_hawkes(mu, alpha, n, t0=0, intensity=hawkes_intensity):
+    cdef np.ndarray[ITYPE_t] event_users = np.zeros(n, dtype=np.int)
+    cdef np.ndarray[ITYPE_t] event_prods = np.zeros(n, dtype=np.int)
+    cdef np.ndarray[DTYPE_t] event_times = np.ones(n) * (-1)
 
-    events = Events.factory(n)
-
-    k = 0
-    t = t0
+    cdef int k = 0, user, product
+    cdef double t = t0, s, u, m_t
+    cdef np.ndarray[DTYPE_t, ndim=2] intensity_at_t, intensity_at_t_s
 
     while k < n:
-        intensity_at_t = intensity(mu, alpha, events, t)
+        intensity_at_t = intensity(mu, alpha, event_times, event_users, event_prods, t)
 
         m_t = intensity_at_t.sum()
         s = np.random.exponential(1. / m_t)
         u = np.random.uniform()
 
-        intensity_at_t_s = intensity(mu, alpha, events, t + s)
+        intensity_at_t_s = intensity(mu, alpha, event_times, event_users, event_prods, t + s)
 
         t = t + s
 
@@ -65,13 +87,14 @@ def generate_hawkes(mu, alpha, n, t0=0, intensity=hawkes_intensity):
             user = get_random_user(intensity_at_t, m_t)
             product = get_random_product(intensity_at_t)
 
-            events.users[k] = user
-            events.products[k] = product
-            events.times[k] = t
+            event_users[k] = user
+            event_prods[k] = product
+            event_times[k] = t
 
             k += 1
 
             if k % 10 == 0:
                 print('\tnow at iteration ', k)
 
-    return events
+    return event_times, event_prods, event_users
+
