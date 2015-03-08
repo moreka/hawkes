@@ -17,7 +17,7 @@ ctypedef np.long_t LTYPE_t
 
 
 @cython.boundscheck(False)
-cdef intensity(np.ndarray[DTYPE_t, ndim=2] mu,
+cpdef intensity(np.ndarray[DTYPE_t, ndim=2] mu,
                np.ndarray[DTYPE_t, ndim=2] alpha,
                np.ndarray[DTYPE_t] event_times,
                np.ndarray[ITYPE_t] event_users,
